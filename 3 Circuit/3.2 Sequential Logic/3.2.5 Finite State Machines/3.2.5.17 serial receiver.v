@@ -1,36 +1,44 @@
+module counter(input clk, en, reset, output done);
+    reg [2:0] counter;
+    always@(posedge clk) begin
+        if (reset | ~en)
+            counter = 0;
+        else 
+            counter = counter + 1'b1;
+    end
+    assign done = (counter == 4'd7);
+endmodule
+//using a 8bit counter.
+
 module top_module(
     input clk,
     input in,
     input reset,    // Synchronous reset
     output done
 ); 
-    parameter i=0, r=1, d=2, e=3;
-    reg[1:0] state, next;
-    int cnt;
+	parameter start=0,stop=1,ok=2,idle=3,error=4;
+    reg [2:0] state;
+    wire [3:0] next;
+    wire counter_done;
+    counter bitcounter(clk,(state==start),reset,counter_done);
     
-    always @(*) begin
-        case(state)
-            i: next = (~in)? r: i;
-            r: next = (cnt == 9 && in)? d : (cnt==9 && ~in)? e : r; // 9 for end bit
-            d: next = (~in)? r: i;
-            e: next = (in)? i : e;
+    always@(*) begin
+        case (state)
+               //5 states
+            idle: next=in?idle:start;
+            start: next = counter_done?stop:start;
+            stop: next = in?ok:error;
+            ok: next = in?idle:start;
+            error: next = in?idle:error;
         endcase
     end
     
-    always @(posedge clk) begin
-        if (reset) begin
-            state <= i;
-            cnt = 0; // 0 for start bit
-        end
-        else begin
-            state <= next;
-            if (next == r)
-                cnt = cnt + 1;
-            if (next == e || next == d)
-                cnt = 0;
-        end        
+    always@(posedge clk) begin
+        if (reset)
+            state = idle;
+        else
+            state = next;
     end
     
-    assign done = (state == d);
-
+    assign done = (state == ok);
 endmodule
